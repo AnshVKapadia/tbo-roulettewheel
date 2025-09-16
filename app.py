@@ -174,6 +174,7 @@ if clicked:
         slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
 
         time_offset = random.random()-0.5
+        print(time_offset)
         time.sleep(spin_time / frames + time_offset)
 
     # Save final rotation and rerun so only the idle wheel renders once
@@ -186,3 +187,4 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
+
