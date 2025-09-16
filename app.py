@@ -18,12 +18,11 @@ frames = st.sidebar.slider("Spin smoothness (frames):", 10, 60, 30)
 spin_time = st.sidebar.slider("Spin duration (seconds):", 1.0, 5.0, 2.0)
 spins = st.sidebar.slider("Number of full rotations:", 1, 8, 3)
 
-# Parse labels
+# ---- Parse labels/weights ----
 labels = [s.strip() for s in labels_text.split(",") if s.strip()]
 if not labels:
     st.stop()
 
-# Parse weights
 if weights_text.strip():
     try:
         weights = [float(x.strip()) for x in weights_text.split(",")]
@@ -41,18 +40,18 @@ if weights.sum() <= 0:
     st.error("At least one weight must be positive.")
     st.stop()
 
-# Colors (evenly spaced hues)
+# ---- Colors ----
 def default_colors(n):
     return [f"hsl({int(360*i/n)}, 70%, 50%)" for i in range(n)]
 colors = default_colors(len(labels))
 
-# Session state
+# ---- Session state ----
 if "angle" not in st.session_state:
     st.session_state.angle = 0.0
 if "result" not in st.session_state:
     st.session_state.result = None
 
-# Build wheel figure
+# ---- Wheel fig ----
 def wheel_fig(angle_deg=0):
     fig = go.Figure(
         data=[
@@ -69,13 +68,8 @@ def wheel_fig(angle_deg=0):
             )
         ]
     )
-    fig.update_layout(
-        width=600,
-        height=600,
-        margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=False
-    )
-    # pointer at the top
+    fig.update_layout(width=600, height=600, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+    # pointer at 12 o'clock
     fig.add_shape(
         type="path",
         path="M 300 20 L 285 60 L 315 60 Z",
@@ -84,7 +78,7 @@ def wheel_fig(angle_deg=0):
     )
     return fig
 
-# Precompute slice geometry
+# ---- Slice geometry ----
 total = weights.sum()
 fractions = weights / total
 slice_angles = fractions * 360.0
@@ -92,38 +86,29 @@ cumulative = np.cumsum(slice_angles)
 starts = np.insert(cumulative[:-1], 0, 0.0)
 centers = (starts + cumulative) / 2.0
 
-# Single rendering slot (avoid duplicate element IDs/keys)
+# ---- Single render slot & stable chart key ----
 placeholder = st.empty()
+CHART_KEY = "wheel_plot"   # <- same key every time for this one chart
 
-# UI: spin button + result
+# ---- UI ----
 col1, col2 = st.columns([1, 1])
 clicked = col1.button("🎲 Spin", use_container_width=True)
 
 if clicked:
-    # Clear any previous render in this run
+    # Clear any previous render in this run to ensure one active chart only
     placeholder.empty()
 
-    # RNG
     rng = np.random.default_rng(None if seed == 0 else seed)
-
-    # Weighted choice
     idx = rng.choice(len(labels), p=fractions)
     chosen = labels[idx]
 
-    # Target angle so chosen slice lands under the fixed pointer (12 o'clock)
-    if snap_to_label_center:
-        target_angle = centers[idx]
-    else:
-        target_angle = rng.uniform(starts[idx], cumulative[idx])
+    # Where to land (center of slice or random point within it)
+    target_angle = centers[idx] if snap_to_label_center else rng.uniform(starts[idx], cumulative[idx])
 
-    # Current wheel angle
     start = st.session_state.angle % 360.0
-
-    # Final angle modulo 360
     final_angle = (spins * 360.0 + target_angle) % 360.0
 
-    # Shortest diff around circle, then add full rotations for animation
-    base_diff = (final_angle - start + 540) % 360 - 180
+    base_diff = (final_angle - start + 540) % 360 - 180  # shortest path (-180,180]
     diff = base_diff + spins * 360.0
 
     # Animate with ease-out
@@ -131,18 +116,18 @@ if clicked:
         t = i / max(1, frames - 1)
         ease = 1 - (1 - t) ** 2
         angle = start + diff * ease
-        placeholder.plotly_chart(wheel_fig(angle), use_container_width=False)
+        placeholder.plotly_chart(wheel_fig(angle), use_container_width=False, key=CHART_KEY)
         time.sleep(spin_time / frames)
 
-    # Snap to final, render once
+    # Final snap
     st.session_state.angle = (start + diff) % 360.0
     st.session_state.result = chosen
-    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
+    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=CHART_KEY)
     st.balloons()
 else:
-    # Idle wheel (only when not animating during this run)
-    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
+    # Idle wheel (only one chart in the run)
+    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=CHART_KEY)
 
-# Result display
+# ---- Result ----
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
