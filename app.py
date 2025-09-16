@@ -173,8 +173,7 @@ if clicked:
         frame_key = f"spin_{st.session_state.spin_id}_{i}"   # unique key per frame
         slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
 
-        time_offset = random.random()-0.5
-        time.sleep((spin_time  + time_offset) / frames)
+        time.sleep((spin_time / frames) * rng.uniform(0.8, 1.2))
 
     # Save final rotation and rerun so only the idle wheel renders once
     st.session_state.rotation = final_rot % 360.0
