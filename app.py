@@ -92,7 +92,6 @@ clicked = col1.button("🎲 Spin", use_container_width=True)
 slot = st.session_state.slot  # reuse same slot every run
 
 if clicked:
-    # Draw ONLY the animation this run (no idle draw)
     rng = np.random.default_rng(None if seed == 0 else seed)
     idx = rng.choice(len(labels), p=fractions)
     chosen = labels[idx]
@@ -104,19 +103,24 @@ if clicked:
     base_diff = (final - start + 540) % 360 - 180   # shortest path (-180,180]
     diff = base_diff + spins * 360.0
 
+    # animate (clear -> draw)
     for i in range(frames):
         t = i / max(1, frames - 1)
         ease = 1 - (1 - t) ** 2  # ease-out
         angle = start + diff * ease
+        slot.empty()
         slot.plotly_chart(wheel_fig(angle), use_container_width=False)
         time.sleep(spin_time / frames)
 
+    # final snap (clear -> draw)
     st.session_state.angle = (start + diff) % 360.0
     st.session_state.result = chosen
+    slot.empty()
     slot.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
     st.balloons()
 else:
-    # Draw ONLY the idle wheel this run (no animation)
+    # idle (clear -> draw)
+    slot.empty()
     slot.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
 
 # ---- Result ----
