@@ -3,6 +3,7 @@ import time
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
+import random
 
 st.set_page_config(page_title="Roulette Spinner", page_icon="🎡", layout="centered")
 st.title("🎡 Roulette Wheel Spinner")
@@ -171,7 +172,9 @@ if clicked:
         rot = start_rot + (final_rot - start_rot) * ease
         frame_key = f"spin_{st.session_state.spin_id}_{i}"   # unique key per frame
         slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
-        time.sleep(spin_time / frames)
+
+        time_offset = random.random()-0.5
+        time.sleep(spin_time / frames + time_offset)
 
     # Save final rotation and rerun so only the idle wheel renders once
     st.session_state.rotation = final_rot % 360.0
