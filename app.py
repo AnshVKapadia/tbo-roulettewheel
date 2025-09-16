@@ -87,7 +87,11 @@ def wheel_fig(angle_deg=0):
 
 # Draw initial wheel
 placeholder = st.empty()
-placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
+placeholder.plotly_chart(
+    wheel_fig(st.session_state.angle),
+    use_container_width=False,
+    key="wheel_plot"    # <-- stable key
+)
 
 # Compute cumulative slice spans (for snapping / result mapping)
 total = weights.sum()
@@ -136,13 +140,13 @@ if clicked:
         t = i / max(1, frames - 1)
         ease = 1 - (1 - t) ** 2
         angle = start + diff * ease
-        placeholder.plotly_chart(wheel_fig(angle), use_container_width=False)
+        placeholder.plotly_chart(wheel_fig(angle), use_container_width=False, key="wheel_plot")
         time.sleep(spin_time / frames)
 
     # Snap to exact final
     st.session_state.angle = (start + diff) % 360.0
     st.session_state.result = chosen
-    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False)
+    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key="wheel_plot")
     st.balloons()
 
 # Result display
