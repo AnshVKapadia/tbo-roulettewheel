@@ -97,7 +97,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
             hole=0.25,
             sort=False,
             direction="clockwise",
-            rotation=rotation_deg,        # rotate wheel so desired slice lands at TOP_ANGLE
+            rotation=rotation_deg,
             textinfo="label+percent",
             textfont=dict(size=14),
             marker=dict(colors=colors, line=dict(color="white", width=2)),
@@ -109,25 +109,26 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
         showlegend=False
     )
 
-    # White arrow pointer at 12 o'clock using paper coords (0..1)
+    # White arrow pointer at 3 o’clock (right side)
     # Shaft
     fig.add_shape(
         type="line",
         xref="paper", yref="paper",
-        x0=0.5, y0=1.05, x1=0.5, y1=0.95,
+        x0=1.05, y0=0.5, x1=0.95, y1=0.5,
         line=dict(color="white", width=5),
         layer="above"
     )
-    # Head (white fill with black outline for contrast on light slices)
+    # Arrowhead
     fig.add_shape(
         type="path",
         xref="paper", yref="paper",
-        path="M 0.47 0.95 L 0.53 0.95 L 0.5 0.88 Z",
+        path="M 0.95 0.47 L 0.95 0.53 L 0.88 0.5 Z",
         line=dict(color="black", width=1.5),
         fillcolor="white",
         layer="above"
     )
     return fig
+
 
 # ---- Rotation math ----
 def rotation_to_align(theta_deg: float, current_rot: float, spins: int) -> float:
