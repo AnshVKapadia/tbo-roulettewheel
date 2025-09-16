@@ -43,16 +43,38 @@ if weights.sum() <= 0:
     st.error("At least one weight must be positive.")
     st.stop()
 
-# ---- Colors ----
-def default_colors(n: int):
-    return [f"hsl({int(360*i/n)}, 70%, 50%)" for i in range(n)]
-colors = default_colors(len(labels))
+# ---- Color mapping ----
+COLOR_MAP = {
+    "red": "red",
+    "blue": "blue",
+    "green": "green",
+    "yellow": "yellow",
+    "purple": "purple",
+    "orange": "orange",
+    "pink": "pink",
+    "black": "black",
+    "white": "white",
+    "gray": "gray",
+    "brown": "saddlebrown",
+}
+def choose_colors(labels):
+    out = []
+    for i, lbl in enumerate(labels):
+        key = lbl.lower()
+        if key in COLOR_MAP:
+            out.append(COLOR_MAP[key])
+        else:
+            # fallback: evenly spaced hues
+            out.append(f"hsl({int(360*i/len(labels))}, 70%, 50%)")
+    return out
+
+colors = choose_colors(labels)
 
 # ---- Session state ----
 st.session_state.setdefault("angle", 0.0)
 st.session_state.setdefault("result", None)
-st.session_state.setdefault("slot", st.empty())   # single rendering slot
-st.session_state.setdefault("spin_id", 0)         # increments per spin (for unique frame keys)
+st.session_state.setdefault("slot", st.empty())
+st.session_state.setdefault("spin_id", 0)
 slot = st.session_state.slot
 
 # ---- Wheel figure ----
@@ -71,12 +93,18 @@ def wheel_fig(angle_deg: float = 0.0) -> go.Figure:
         )]
     )
     fig.update_layout(width=600, height=600, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-    # pointer at 12 o'clock
+
+    # pointer arrow at 12 o'clock
+    fig.add_shape(
+        type="line",
+        x0=300, y0=20, x1=300, y1=60,
+        line=dict(color="white", width=4)
+    )
     fig.add_shape(
         type="path",
-        path="M 300 20 L 285 60 L 315 60 Z",
+        path="M 285 60 L 315 60 L 300 90 Z",
         line=dict(color="black"),
-        fillcolor="black",
+        fillcolor="white",
     )
     return fig
 
@@ -93,8 +121,7 @@ col1, col2 = st.columns([1, 1])
 clicked = col1.button("🎲 Spin", use_container_width=True)
 
 if clicked:
-    st.session_state.spin_id += 1  # namespace for this spin's frames
-
+    st.session_state.spin_id += 1
     rng = np.random.default_rng(None if seed == 0 else seed)
     idx = rng.choice(len(labels), p=fractions)
     chosen = labels[idx]
@@ -102,26 +129,24 @@ if clicked:
 
     start = st.session_state.angle % 360.0
     final = (spins * 360.0 + target) % 360.0
-    base_diff = (final - start + 540) % 360 - 180   # shortest path (-180, 180]
+    base_diff = (final - start + 540) % 360 - 180
     diff = base_diff + spins * 360.0
 
-    # Animate: unique key per frame avoids duplicate-key collisions in a single run
+    # Animate: unique key per frame
     for i in range(frames):
         t = i / max(1, frames - 1)
-        ease = 1 - (1 - t) ** 2  # ease-out
+        ease = 1 - (1 - t) ** 2
         angle = start + diff * ease
         frame_key = f"spin_{st.session_state.spin_id}_{i}"
         slot.plotly_chart(wheel_fig(angle), use_container_width=False, key=frame_key)
         time.sleep(spin_time / frames)
 
-    # Save final state and rerun so only the idle wheel renders in a fresh run
     st.session_state.angle = (start + diff) % 360.0
     st.session_state.result = chosen
     st.rerun()
 
-# IDLE WHEEL: stable key; only rendered on initial load and after reruns
+# Idle wheel
 slot.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key="idle_wheel")
 
-# Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
