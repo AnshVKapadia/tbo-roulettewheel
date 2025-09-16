@@ -50,6 +50,10 @@ if "angle" not in st.session_state:
     st.session_state.angle = 0.0
 if "result" not in st.session_state:
     st.session_state.result = None
+# Create the placeholder ONCE and reuse it every rerun
+if "wheel_slot" not in st.session_state:
+    st.session_state.wheel_slot = st.empty()
+WHEEL_KEY = "wheel_plot"
 
 # ---- Wheel fig ----
 def wheel_fig(angle_deg=0):
@@ -86,47 +90,44 @@ cumulative = np.cumsum(slice_angles)
 starts = np.insert(cumulative[:-1], 0, 0.0)
 centers = (starts + cumulative) / 2.0
 
-# ---- Single render slot & stable chart key ----
-placeholder = st.empty()
-CHART_KEY = "wheel_plot"   # <- same key every time for this one chart
-
 # ---- UI ----
 col1, col2 = st.columns([1, 1])
 clicked = col1.button("🎲 Spin", use_container_width=True)
 
+slot = st.session_state.wheel_slot  # reuse the same placeholder every run
+
 if clicked:
-    # Clear any previous render in this run to ensure one active chart only
-    placeholder.empty()
+    # ensure only one chart exists in this run
+    slot.empty()
 
     rng = np.random.default_rng(None if seed == 0 else seed)
     idx = rng.choice(len(labels), p=fractions)
     chosen = labels[idx]
 
-    # Where to land (center of slice or random point within it)
     target_angle = centers[idx] if snap_to_label_center else rng.uniform(starts[idx], cumulative[idx])
 
     start = st.session_state.angle % 360.0
     final_angle = (spins * 360.0 + target_angle) % 360.0
 
-    base_diff = (final_angle - start + 540) % 360 - 180  # shortest path (-180,180]
+    base_diff = (final_angle - start + 540) % 360 - 180
     diff = base_diff + spins * 360.0
 
-    # Animate with ease-out
+    # animate (always same key + same slot)
     for i in range(frames):
         t = i / max(1, frames - 1)
         ease = 1 - (1 - t) ** 2
         angle = start + diff * ease
-        placeholder.plotly_chart(wheel_fig(angle), use_container_width=False, key=CHART_KEY)
+        slot.plotly_chart(wheel_fig(angle), use_container_width=False, key=WHEEL_KEY)
         time.sleep(spin_time / frames)
 
-    # Final snap
+    # final snap
     st.session_state.angle = (start + diff) % 360.0
     st.session_state.result = chosen
-    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=CHART_KEY)
+    slot.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=WHEEL_KEY)
     st.balloons()
 else:
-    # Idle wheel (only one chart in the run)
-    placeholder.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=CHART_KEY)
+    # idle (only one render in this run)
+    slot.plotly_chart(wheel_fig(st.session_state.angle), use_container_width=False, key=WHEEL_KEY)
 
 # ---- Result ----
 if st.session_state.result:
