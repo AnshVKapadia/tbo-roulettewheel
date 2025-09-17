@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 st.set_page_config(page_title="Roulette Spinner", page_icon="🎡", layout="centered")
-st.title("🎡 American Roulette Wheel Spinner")
+st.title("🎡 American Roulette Wheel")
 
 # =========================
 # HARD-CODED AMERICAN ROULETTE CONSTANTS
@@ -177,3 +177,4 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
+
