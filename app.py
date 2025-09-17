@@ -24,9 +24,9 @@ GREEN_NUMS = {"0","00"}
 WEIGHTS = None                 # None => equal weights
 SEED = 0                       # 0 => random each spin
 SNAP_TO_CENTER = False
-FRAMES = 90
-SPIN_TIME = 4.01
-SPINS = 10
+FRAMES = 120
+SPIN_TIME = 4.00
+SPINS = 5
 SLOW_K = 1.50
 RANDOM_SPIN_TIME_RANGE = (0.8, 1.2)
 # =========================
@@ -112,28 +112,34 @@ def rotation_to_align(theta_deg: float, current_rot: float, spins_full: int) -> 
 
 # ---- Angle schedule (constant speed then uniform slowdown in last k sec) ----
 def angle_schedule(start_rot: float, final_rot: float, total_time: float, k: float, frames: int):
+    """
+    Phase 1: constant angular velocity ω1 for T1 = total_time - k
+    Phase 2: constant deceleration to exactly zero velocity over k seconds.
+    Ensures velocity continuity at the join (no speed-up blip).
+    """
     total_angle = final_rot - start_rot
     total_time = max(1e-9, total_time)
     k = max(0.0, min(k, total_time))
     T1 = total_time - k
+
     if k == 0.0:
         times = np.linspace(0.0, total_time, frames)
         return list(start_rot + total_angle * (times / total_time))
+
+    # Solve ω1 from total_angle = ω1*T1 + 1/2*ω1*k  ->  ω1 = total_angle / (T1 + k/2)
     denom = (T1 + 0.5 * k)
-    if abs(denom) < 1e-12:
-        w1 = 2.0 * total_angle / k
-    else:
-        w1 = total_angle / denom
-    a = -w1 / k
+    ω1 = (2.0 * total_angle / k) if abs(denom) < 1e-12 else (total_angle / denom)
+    a = -ω1 / k  # decelerate to 0 over exactly k seconds
+
     times = np.linspace(0.0, total_time, frames)
     angles = []
     for t in times:
         if t <= T1:
-            theta = start_rot + w1 * t
+            θ = start_rot + ω1 * t                     # constant speed (matches phase-2 start)
         else:
-            tau = t - T1
-            theta = start_rot + w1 * T1 + (w1 * tau + 0.5 * a * tau * tau)
-        angles.append(theta)
+            τ = t - T1
+            θ = start_rot + ω1*T1 + (ω1*τ + 0.5*a*τ*τ)  # decel to rest
+        angles.append(θ)
     return angles
 
 # ---- UI ----
