@@ -27,8 +27,9 @@ SNAP_TO_CENTER = False
 FRAMES = 120
 SPIN_TIME = 4.00
 SPINS = 5
-SLOW_K = 1.50
+SLOW_K = 1.50                  # (kept for backwards-compat; unused by new schedule)
 RANDOM_SPIN_TIME_RANGE = (0.8, 1.2)
+DECEL_POWER = 2.0              # >=0. Higher = stronger late braking (2 good, try 1..4)
 # =========================
 
 # ---- Parse labels/weights ----
@@ -72,7 +73,7 @@ slice_angles = fractions * 360.0
 cum = np.cumsum(slice_angles)
 starts = np.insert(cum[:-1], 0, 0.0)
 centers = (starts + cum) / 2.0
-TOP_ANGLE = 90.0  # alignment math unchanged
+TOP_ANGLE = 90.0  # your alignment constant that worked for your pointer setup
 
 # ---- Wheel figure (pointer on right at 3 o’clock) ----
 def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
@@ -91,17 +92,15 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
     )
     fig.update_layout(width=600, height=600, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
     
-    # Pointer head
+    # Pointer head (triangle) tangent at right edge
     fig.add_shape(
         type="path",
         xref="paper", yref="paper",
-        # base still at (0.95, 0.5), tip pulled inward a bit
         path="M 1.0 0.485 L 1.0 0.515 L 0.96 0.5 Z",
         line=dict(color="black", width=1.2),
         fillcolor="white",
         layer="above"
     )
-
     return fig
 
 # ---- Rotation math ----
@@ -110,37 +109,20 @@ def rotation_to_align(theta_deg: float, current_rot: float, spins_full: int) -> 
     delta = (desired - (current_rot % 360.0)) % 360.0
     return current_rot + spins_full * 360.0 + delta
 
-# ---- Angle schedule (constant speed then uniform slowdown in last k sec) ----
-def angle_schedule(start_rot: float, final_rot: float, total_time: float, k: float, frames: int):
+# ---- NEW: Smooth, continuously decreasing speed over entire spin ----
+def angle_schedule(start_rot: float, final_rot: float, total_time: float, frames: int, power: float):
     """
-    Phase 1: constant angular velocity ω1 for T1 = total_time - k
-    Phase 2: constant deceleration to exactly zero velocity over k seconds.
-    Ensures velocity continuity at the join (no speed-up blip).
+    Monotonic deceleration from t=0 to t=total_time with omega(t) decreasing to 0.
+      theta(t) = start + Δ * (1 - (1 - t/T)^(power+1))
+    Properties:
+      - omega(t) = Δ * (power+1)/T * (1 - t/T)^power  (strictly decreasing, hits 0 at T)
+      - power in [1..4] works nicely (2 is a good default)
     """
-    total_angle = final_rot - start_rot
-    total_time = max(1e-9, total_time)
-    k = max(0.0, min(k, total_time))
-    T1 = total_time - k
-
-    if k == 0.0:
-        times = np.linspace(0.0, total_time, frames)
-        return list(start_rot + total_angle * (times / total_time))
-
-    # Solve ω1 from total_angle = ω1*T1 + 1/2*ω1*k  ->  ω1 = total_angle / (T1 + k/2)
-    denom = (T1 + 0.5 * k)
-    ω1 = (2.0 * total_angle / k) if abs(denom) < 1e-12 else (total_angle / denom)
-    a = -ω1 / k  # decelerate to 0 over exactly k seconds
-
-    times = np.linspace(0.0, total_time, frames)
-    angles = []
-    for t in times:
-        if t <= T1:
-            θ = start_rot + ω1 * t                     # constant speed (matches phase-2 start)
-        else:
-            τ = t - T1
-            θ = start_rot + ω1*T1 + (ω1*τ + 0.5*a*τ*τ)  # decel to rest
-        angles.append(θ)
-    return angles
+    T = max(1e-9, total_time)
+    n = max(0.0, power)
+    times = np.linspace(0.0, T, frames)
+    frac = 1.0 - np.power(1.0 - times / T, n + 1.0)  # 0->1, concave, smooth
+    return list(start_rot + (final_rot - start_rot) * frac)
 
 # ---- UI ----
 col1, col2 = st.columns([1, 1])
@@ -162,7 +144,9 @@ if clicked:
     final_rot = rotation_to_align(target_theta, start_rot, SPINS)
 
     spin_time_effective = SPIN_TIME * rng.uniform(*RANDOM_SPIN_TIME_RANGE)
-    angles = angle_schedule(start_rot, final_rot, spin_time_effective, SLOW_K, FRAMES)
+
+    # Build continuously-decelerating schedule (no flat phase)
+    angles = angle_schedule(start_rot, final_rot, spin_time_effective, FRAMES, DECEL_POWER)
 
     for i, rot in enumerate(angles):
         frame_key = f"spin_{st.session_state.spin_id}_{i}"
