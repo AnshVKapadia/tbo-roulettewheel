@@ -101,7 +101,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
             sort=False,
             direction="clockwise",
             rotation=rotation_deg,
-            textinfo="label+percent",
+            textinfo="label",
             textfont=dict(size=14),
             marker=dict(colors=colors, line=dict(color="white", width=2)),
         )]
