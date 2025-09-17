@@ -90,23 +90,18 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
         )]
     )
     fig.update_layout(width=600, height=600, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
-    # Pointer shaft
-    fig.add_shape(
-        type="line",
-        xref="paper", yref="paper",
-        x0=1.05, y0=0.5, x1=0.95, y1=0.5,
-        line=dict(color="white", width=5),
-        layer="above"
-    )
+    
     # Pointer head
     fig.add_shape(
         type="path",
         xref="paper", yref="paper",
-        path="M 0.95 0.47 L 0.95 0.53 L 0.88 0.5 Z",
-        line=dict(color="black", width=1.5),
+        # base still at (0.95, 0.5), tip pulled inward a bit
+        path="M 1.0 0.485 L 1.0 0.515 L 0.96 0.5 Z",
+        line=dict(color="black", width=1.2),
         fillcolor="white",
         layer="above"
     )
+
     return fig
 
 # ---- Rotation math ----
@@ -177,4 +172,3 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
-
