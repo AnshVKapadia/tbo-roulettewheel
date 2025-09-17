@@ -18,9 +18,10 @@ labels_text = st.sidebar.text_area(
 weights_text = st.sidebar.text_input("Weights (optional, e.g., 1,2,1,...):", "")
 seed = st.sidebar.number_input("Seed (0 = random each spin):", value=0, step=1)
 snap_to_center = st.sidebar.checkbox("Snap to slice center", value=True)
-frames = st.sidebar.slider("Spin frames:", 10, 60, 30)
-spin_time = st.sidebar.slider("Spin duration (seconds):", 1.0, 5.0, 2.0)
-spins = st.sidebar.slider("Full rotations:", 1, 8, 3)
+frames = st.sidebar.slider("Spin frames:", 10, 90, 30)
+spin_time = st.sidebar.slider("Spin duration (seconds):", 1.0, 6.0, 2.0)
+spins = st.sidebar.slider("Full rotations:", 1, 10, 3)
+slow_k = st.sidebar.slider("Slowdown in last k seconds:", 0.0, 3.0, 1.5, 0.1)
 
 # ---- Parse labels/weights ----
 labels = [s.strip() for s in labels_text.split(",") if s.strip()]
@@ -73,7 +74,7 @@ def choose_colors(labels):
 colors = choose_colors(labels)
 
 # ---- Session state ----
-st.session_state.setdefault("rotation", 0.0)   # this is the wheel's rotation in degrees
+st.session_state.setdefault("rotation", 0.0)   # wheel's rotation in degrees
 st.session_state.setdefault("result", None)
 st.session_state.setdefault("slot", st.empty())   # single rendering slot
 st.session_state.setdefault("spin_id", 0)         # increments per spin (for unique frame keys)
@@ -84,12 +85,13 @@ total = float(weights.sum())
 fractions = weights / total
 slice_angles = fractions * 360.0
 cum = np.cumsum(slice_angles)
-starts = np.insert(cum[:-1], 0, 0.0)       # start angles (deg) measured from 3 o'clock, clockwise
-centers = (starts + cum) / 2.0             # center angles (deg)
+starts = np.insert(cum[:-1], 0, 0.0)  # start angles (deg) measured from 3 o'clock, clockwise
+centers = (starts + cum) / 2.0        # center angles (deg)
 
-TOP_ANGLE = 90.0  # 12 o'clock in plotly's coordinate system (0° is 3 o'clock)
+# Keep winner-calculation math AS-IS (your code uses TOP_ANGLE)
+TOP_ANGLE = 90.0  # NOTE: winner calc untouched per your request
 
-# ---- Wheel figure (with visible white arrow pointer in paper coords) ----
+# ---- Wheel figure (pointer on the RIGHT at 3 o'clock) ----
 def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
     fig = go.Figure(
         data=[go.Pie(
@@ -110,7 +112,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
         showlegend=False
     )
 
-    # White arrow pointer at 3 o’clock (right side)
+    # White arrow pointer at 3 o’clock (right side) in paper coords
     # Shaft
     fig.add_shape(
         type="line",
@@ -119,7 +121,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
         line=dict(color="white", width=5),
         layer="above"
     )
-    # Arrowhead
+    # Arrowhead (white with black outline for contrast)
     fig.add_shape(
         type="path",
         xref="paper", yref="paper",
@@ -130,19 +132,38 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
     )
     return fig
 
-
-# ---- Rotation math ----
-def rotation_to_align(theta_deg: float, current_rot: float, spins: int) -> float:
+# ---- Rotation math (unchanged winner alignment) ----
+def rotation_to_align(theta_deg: float, current_rot: float, spins_full: int) -> float:
     """
     Given a target polar angle theta_deg (center or random point inside the chosen slice),
-    return a final rotation so that theta_deg appears at TOP_ANGLE (12 o'clock).
+    return a final rotation so that theta_deg appears at TOP_ANGLE (per your existing logic).
     """
-    # desired rotation that would put theta at TOP_ANGLE:
     desired = (TOP_ANGLE - theta_deg) % 360.0
-    # ensure multiple full rotations for drama, then align precisely
-    # Compute the delta from current rotation to desired (mod 360)
     delta = (desired - (current_rot % 360.0)) % 360.0
-    return current_rot + spins * 360.0 + delta
+    return current_rot + spins_full * 360.0 + delta
+
+# ---- Time-to-angle schedule: uniform slowdown in last k seconds ----
+def angle_schedule(start_rot: float, final_rot: float, total_time: float, k: float, frames: int):
+    """
+    Returns a list of rotation angles over 'frames' points such that motion is roughly
+    linear until the last k seconds, then decelerates smoothly (quadratic ease-out).
+    """
+    times = np.linspace(0.0, total_time, frames)
+    total_angle = final_rot - start_rot
+    angles = []
+    accel_time = max(0.0, total_time - k)
+
+    for t in times:
+        if t < accel_time or total_time <= 1e-9:
+            frac = t / max(total_time, 1e-9)
+        else:
+            # decel phase from accel_time..total_time mapped to 0..1
+            t_dec = (t - accel_time) / max(k, 1e-9)
+            ease = 1 - (1 - t_dec) ** 2  # quadratic ease-out
+            frac = (accel_time / total_time) + (k / total_time) * ease
+
+        angles.append(start_rot + total_angle * min(max(frac, 0.0), 1.0))
+    return angles
 
 # ---- UI ----
 col1, col2 = st.columns([1, 1])
@@ -150,7 +171,10 @@ clicked = col1.button("🎲 Spin", use_container_width=True)
 
 if clicked:
     st.session_state.spin_id += 1
+
+    # RNG (seed 0 => random; nonzero => deterministic)
     rng = np.random.default_rng(None if seed == 0 else seed)
+
     # pick a slice by weight
     idx = rng.choice(len(labels), p=fractions)
     st.session_state.result = labels[idx]
@@ -161,19 +185,22 @@ if clicked:
     else:
         target_theta = rng.uniform(starts[idx], cum[idx])
 
-    # compute final rotation that brings target_theta to the top
+    # compute final rotation (winner math unchanged)
     start_rot = float(st.session_state.rotation)
     final_rot = rotation_to_align(target_theta, start_rot, spins)
 
-    # Animate rotation with ease-out
-    for i in range(frames):
-        t = i / max(1, frames - 1)
-        ease = 1 - (1 - t) ** 2
-        rot = start_rot + (final_rot - start_rot) * ease
-        frame_key = f"spin_{st.session_state.spin_id}_{i}"   # unique key per frame
-        slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
+    # Randomize spin duration by x ~ U[0.8, 1.2] per spin
+    spin_time_effective = spin_time * rng.uniform(0.8, 1.2)
 
-        time.sleep((spin_time / frames) * rng.uniform(0.8, 1.2))
+    # Build angle schedule with uniform slowdown in the last slow_k seconds
+    angles = angle_schedule(start_rot, final_rot, spin_time_effective, slow_k, frames)
+
+    # Animate with unique keys per frame to avoid duplicate-key errors in a single run
+    for i, rot in enumerate(angles):
+        frame_key = f"spin_{st.session_state.spin_id}_{i}"
+        slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
+        # keep wall time consistent with the randomized duration
+        time.sleep(spin_time_effective / max(frames, 1))
 
     # Save final rotation and rerun so only the idle wheel renders once
     st.session_state.rotation = final_rot % 360.0
