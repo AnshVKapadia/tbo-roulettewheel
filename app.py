@@ -145,24 +145,42 @@ def rotation_to_align(theta_deg: float, current_rot: float, spins_full: int) -> 
 # ---- Time-to-angle schedule: uniform slowdown in last k seconds ----
 def angle_schedule(start_rot: float, final_rot: float, total_time: float, k: float, frames: int):
     """
-    Returns a list of rotation angles over 'frames' points such that motion is roughly
-    linear until the last k seconds, then decelerates smoothly (quadratic ease-out).
+    Piecewise-kinematic profile:
+      - Phase 1 (duration T1 = total_time - k): constant angular velocity ω1
+      - Phase 2 (duration k): constant deceleration a so velocity hits 0 exactly at the end
+    Ensures no weird “speed-up” in the last k seconds.
     """
-    times = np.linspace(0.0, total_time, frames)
     total_angle = final_rot - start_rot
+    total_time = max(1e-9, total_time)
+    k = max(0.0, min(k, total_time))
+    T1 = total_time - k
+
+    if k == 0.0:
+        # Pure linear spin
+        times = np.linspace(0.0, total_time, frames)
+        return list(start_rot + total_angle * (times / total_time))
+
+    # Solve for ω1 so that: total_angle = ω1*T1 + 0.5*ω1*k  => ω1 = total_angle / (T1 + k/2)
+    denom = (T1 + 0.5*k)
+    if abs(denom) < 1e-12:
+        # Edge case: total_time == k => no constant-velocity phase
+        ω1 = 2.0 * total_angle / k
+    else:
+        ω1 = total_angle / denom
+
+    a = -ω1 / k  # constant decel so velocity goes to zero at t = k
+
+    times = np.linspace(0.0, total_time, frames)
     angles = []
-    accel_time = max(0.0, total_time - k)
-
     for t in times:
-        if t < accel_time or total_time <= 1e-9:
-            frac = t / max(total_time, 1e-9)
+        if t <= T1:
+            # Phase 1: θ = θ0 + ω1 * t
+            θ = start_rot + ω1 * t
         else:
-            # decel phase from accel_time..total_time mapped to 0..1
-            t_dec = (t - accel_time) / max(k, 1e-9)
-            ease = 1 - (1 - t_dec) ** 2  # quadratic ease-out
-            frac = (accel_time / total_time) + (k / total_time) * ease
-
-        angles.append(start_rot + total_angle * min(max(frac, 0.0), 1.0))
+            # Phase 2: θ = θ0 + ω1*T1 + (ω1*τ + 0.5*a*τ^2), τ = t - T1
+            τ = t - T1
+            θ = start_rot + ω1*T1 + (ω1*τ + 0.5*a*τ*τ)
+        angles.append(θ)
     return angles
 
 # ---- UI ----
