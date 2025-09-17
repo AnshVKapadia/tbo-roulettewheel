@@ -145,47 +145,43 @@ def rotation_to_align(theta_deg: float, current_rot: float, spins_full: int) -> 
 # ---- Time-to-angle schedule: uniform slowdown in last k seconds ----
 def angle_schedule(start_rot: float, final_rot: float, total_time: float, k: float, frames: int):
     """
-    Two-phase profile:
-      1) [0, T1] constant angular velocity (linear progress)
-      2) [T1, T] quintic Hermite blend with matched velocity at T1
-         and zero velocity & acceleration at T (very smooth stop)
+    Piecewise-kinematic profile:
+      - Phase 1 (duration T1 = total_time - k): constant angular velocity ω1
+      - Phase 2 (duration k): constant deceleration a so velocity hits 0 exactly at the end
+    Ensures no weird “speed-up” in the last k seconds.
     """
     total_angle = final_rot - start_rot
     total_time = max(1e-9, total_time)
     k = max(0.0, min(k, total_time))
     T1 = total_time - k
 
-    # Pure linear if no slowdown window
     if k == 0.0:
+        # Pure linear spin
         times = np.linspace(0.0, total_time, frames)
         return list(start_rot + total_angle * (times / total_time))
 
-    # Overall linear progress fraction at the join
-    f0 = T1 / total_time
+    # Solve for ω1 so that: total_angle = ω1*T1 + 0.5*ω1*k  => ω1 = total_angle / (T1 + k/2)
+    denom = (T1 + 0.5*k)
+    if abs(denom) < 1e-12:
+        # Edge case: total_time == k => no constant-velocity phase
+        ω1 = 2.0 * total_angle / k
+    else:
+        ω1 = total_angle / denom
 
-    # Quintic Hermite S(u) on u in [0,1] with:
-    #   S(0)=0, S(1)=1, S'(0)=1, S'(1)=0, S''(0)=0, S''(1)=0
-    #   => S(u) = 3u^5 - 7u^4 + 4u^3 + u
-    def S(u):
-        return (3*u**5 - 7*u**4 + 4*u**3 + u)
+    a = -ω1 / k  # constant decel so velocity goes to zero at t = k
 
     times = np.linspace(0.0, total_time, frames)
     angles = []
-
     for t in times:
         if t <= T1:
-            frac = t / total_time  # constant velocity
+            # Phase 1: θ = θ0 + ω1 * t
+            θ = start_rot + ω1 * t
         else:
-            u = (t - T1) / max(1e-9, k)   # 0..1 within the slowdown window
-            # Blend from f0 to 1 using S(u); this matches incoming slope exactly:
-            # dp/dt at u=0 equals 1/total_time, dp/dt at u=1 equals 0
-            frac = f0 + (1.0 - f0) * S(u)
-
-        frac = min(max(frac, 0.0), 1.0)
-        angles.append(start_rot + total_angle * frac)
-
+            # Phase 2: θ = θ0 + ω1*T1 + (ω1*τ + 0.5*a*τ^2), τ = t - T1
+            τ = t - T1
+            θ = start_rot + ω1*T1 + (ω1*τ + 0.5*a*τ*τ)
+        angles.append(θ)
     return angles
-
 
 # ---- UI ----
 col1, col2 = st.columns([1, 1])
