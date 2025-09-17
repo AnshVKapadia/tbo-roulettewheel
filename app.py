@@ -80,7 +80,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
             sort=False,
             direction="clockwise",
             rotation=rotation_deg,
-            textinfo="label+percent",
+            textinfo="label",
             textfont=dict(size=14),
             marker=dict(colors=colors, line=dict(color="white", width=2)),
         )]
@@ -185,3 +185,4 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
+
