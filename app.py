@@ -14,7 +14,7 @@ LABELS = ["Red", "Blue", "Green", "Yellow", "Purple", "Orange"]
 WEIGHTS = None                 # None => equal weights across LABELS
 SEED = 0                       # 0 => random each spin; nonzero => deterministic
 SNAP_TO_CENTER = False         # do not snap to slice center (random point inside slice if False)
-FRAMES = 90                    # number of frames in the animation
+FRAMES = 120                   # number of frames in the animation
 SPIN_TIME = 4.00               # seconds
 SPINS = 10                     # full rotations
 SLOW_K = 1.50                  # slow down during the last k seconds
@@ -185,4 +185,5 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
+
 
