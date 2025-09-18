@@ -78,6 +78,21 @@ starts = np.insert(cum[:-1], 0, 0.0)
 centers = (starts + cum) / 2.0
 TOP_ANGLE = 90.0  # your alignment constant that worked for your pointer setup
 
+# === POINTER ANGLE CALCULATIONS ===
+POINTER_ANGLE = TOP_ANGLE  # keep using your current constant (90.0 in your code)
+
+def visible_index(rotation_deg: float) -> int:
+    """
+    Given the go.Pie(rotation=rotation_deg), return the index of the slice
+    under the pointer (POINTER_ANGLE). Works with direction='clockwise', sort=False.
+    """
+    alpha = (POINTER_ANGLE - (rotation_deg % 360.0)) % 360.0  # angle seen by pointer
+    # find the first cumulative end >= alpha
+    idx = int(np.searchsorted(cum, alpha, side="right"))
+    if idx >= len(labels):
+        idx = len(labels) - 1
+    return idx
+
 # ---- Wheel figure (pointer on right at 3 o’clock) ----
 def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
     fig = go.Figure(
@@ -136,7 +151,7 @@ if clicked:
     rng = np.random.default_rng(None if SEED == 0 else SEED)
 
     idx = rng.choice(len(labels), p=fractions)
-    st.session_state.result = labels[idx]
+    #st.session_state.result = labels[idx]
 
     if SNAP_TO_CENTER:
         target_theta = centers[idx]
@@ -158,7 +173,11 @@ if clicked:
         slot.plotly_chart(wheel_fig(rot), use_container_width=False, key=frame_key)
         time.sleep(spin_time_effective / max(FRAMES, 1))
 
+    # Save final rotation and compute visible result from where we actually landed
     st.session_state.rotation = final_rot % 360.0
+    result_idx = visible_index(st.session_state.rotation)
+    st.session_state.result = labels[result_idx]
+
     st.rerun()
 
 # Idle wheel
