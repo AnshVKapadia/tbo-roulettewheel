@@ -165,6 +165,13 @@ if clicked:
 
     spin_time_effective = SPIN_TIME
 
+    # Predicting the result before it happens
+    predicted_idx = visible_index(final_rot % 360.0)
+    predicted_result = labels[predicted_idx]
+    
+    # (optional) show a spoiler:
+    st.info(f"Incoming: **{predicted_result}**")  # or gate behind a checkbox
+
     # Build continuously-decelerating schedule (no flat phase)
     angles = angle_schedule(start_rot, final_rot, spin_time_effective, FRAMES, DECEL_POWER)
 
