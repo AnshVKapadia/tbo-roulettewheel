@@ -143,10 +143,12 @@ if clicked:
     else:
         target_theta = rng.uniform(starts[idx], cum[idx])
 
-    start_rot = float(st.session_state.rotation)
-    final_rot = rotation_to_align(target_theta, start_rot, SPINS)
+    spins_effective = SPINS * rng.uniform(*RANDOM_SPIN_TIME_RANGE)
 
-    spin_time_effective = SPIN_TIME * rng.uniform(*RANDOM_SPIN_TIME_RANGE)
+    start_rot = float(st.session_state.rotation)
+    final_rot = rotation_to_align(target_theta, start_rot, spins_effective)
+
+    spin_time_effective = SPIN_TIME
 
     # Build continuously-decelerating schedule (no flat phase)
     angles = angle_schedule(start_rot, final_rot, spin_time_effective, FRAMES, DECEL_POWER)
