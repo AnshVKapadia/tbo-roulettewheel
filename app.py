@@ -30,6 +30,9 @@ SPINS = 5
 SLOW_K = 1.50                  # (kept for backwards-compat; unused by new schedule)
 RANDOM_SPIN_TIME_RANGE = (0.8, 1.2)
 DECEL_POWER = 2.0              # >=0. Higher = stronger late braking (2 good, try 1..4)
+
+WIDTH = 400
+HEIGHT = 400
 # =========================
 
 # ---- Parse labels/weights ----
@@ -90,7 +93,7 @@ def wheel_fig(rotation_deg: float = 0.0) -> go.Figure:
             marker=dict(colors=colors, line=dict(color="white", width=2)),
         )]
     )
-    fig.update_layout(width=600, height=600, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
+    fig.update_layout(width=WIDTH, height=HEIGHT, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
     
     # Pointer head (triangle) tangent at right edge
     fig.add_shape(
