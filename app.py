@@ -170,7 +170,7 @@ if clicked:
     predicted_result = labels[predicted_idx]
     
     # (optional) show a spoiler:
-    st.info(f"Incoming: **{predicted_result}**")  # or gate behind a checkbox
+    #st.info(f"Incoming: **{predicted_result}**")  # or gate behind a checkbox
 
     # Build continuously-decelerating schedule (no flat phase)
     angles = angle_schedule(start_rot, final_rot, spin_time_effective, FRAMES, DECEL_POWER)
@@ -193,3 +193,4 @@ slot.plotly_chart(wheel_fig(st.session_state.rotation), use_container_width=Fals
 # Result display
 if st.session_state.result:
     col2.success(f"Result: **{st.session_state.result}**")
+
